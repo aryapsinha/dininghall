@@ -2,6 +2,11 @@
 var express = require("express");
 var router = express.Router();
 
+router.get("/", function(req, res){
+    console.log("main");
+    res.render("main");
+});
+
 router.get("/balance", function(req, res){
     console.log("balance");
     res.render("balance");
@@ -14,8 +19,8 @@ router.get("/profile", function(req, res){
 
 const puppeteer = require("puppeteer");
 // define route to render scraped data
-router.get("/", async(req, res) => {
-    console.log("scraping in main!");
+router.get("/scrape", async(req, res) => {
+    console.log("scraping!");
     try
     {   
         // launch Puppeteer and open new browser instance
@@ -49,13 +54,13 @@ router.get("/", async(req, res) => {
                         const nameElement = element.querySelector(".whats-open-tile_locationName_26Mtj");
                         const statusElement = element.querySelector(".whats-open-tile_statusRed_FIhpq");
 
-                        if (nameElement && statusElement) 
+                        if(nameElement && statusElement) 
                         {
                             const name = nameElement.textContent.trim();
                             const status = statusElement.textContent.trim();
             
                             // only push if not closed
-                            if (!status.includes("Closed")) 
+                            if(!status.includes("Closed")) 
                             {
                                 halls.push(name);
                             }
@@ -85,11 +90,40 @@ router.get("/", async(req, res) => {
         const openDiningHalls = [...columbiaHalls, ...barnardHalls];
         console.log("Open dining halls:", openDiningHalls);
 
+        const scrapeMenuItems = async (url, selector) => {
+            try
+            {
+                await page.goto(url, { waitUntil: "networkidle0" }); // ensure DOM is loaded
+            }
+            catch(error)
+            {
+                console.error("Error:", error);
+            }
+
+            await page.waitForSelector(selector);
+
+            return await page.evaluate((selector) => {
+                const menuItems = [];
+                const elements = document.querySelectorAll(selector);
+
+                elements.forEach(element => {
+                    menuItems.push(element.textContent.trim());
+                });
+
+                return menuItems;
+            }, selector);
+        };
+
+        const menuItems = scrapeMenuItems("https://dining.columbia.edu/",
+            ".meal-item.angular-animate.ng-trans.ng-trans-fade-down.ng-scope .meal-title.ng-binding"
+        );
+        console.log("Menu items:", menuItems);
+
         // close the browser
         await browser.close();
 
         // send data to main.ejs template to display
-        res.render("main", { openDiningHalls });
+        res.render("scrape", { openDiningHalls, menuItems });
     }
     catch(error)
     {
